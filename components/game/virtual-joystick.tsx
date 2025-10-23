@@ -4,7 +4,6 @@ import {
   Platform,
   StyleSheet,
   View,
-  findNodeHandle,
 } from 'react-native';
 
 interface JoystickData {
@@ -38,18 +37,9 @@ export default function VirtualJoystick({
 
   const handleTouchStart = (event: GestureResponderEvent) => {
     // Only respond if we don't already have an active touch
-    if (activeTouchId.current !== null) return;
-
-    // CRITICAL FOR ANDROID: Tell parent views not to intercept our touches
-    // This prevents the WebView from stealing touch events
-    if (Platform.OS === 'android' && viewRef.current) {
-      const node = findNodeHandle(viewRef.current);
-      if (node) {
-        // @ts-ignore - requestDisallowInterceptTouchEvent exists but not in types
-        viewRef.current.setNativeProps?.({
-          onStartShouldSetResponderCapture: () => true,
-        });
-      }
+    if (activeTouchId.current !== null) {
+      console.log('🕹️ Joystick: Already have active touch, ignoring new touch');
+      return;
     }
 
     // Find the NEWEST touch (the one that just touched THIS component)
@@ -67,8 +57,10 @@ export default function VirtualJoystick({
       console.log(
         '🕹️ Joystick started, touch ID:',
         touch.identifier,
-        'Total touches:',
+        'Total touches in system:',
         allTouches.length,
+        'Platform:',
+        Platform.OS,
       );
     }
   };
@@ -83,7 +75,17 @@ export default function VirtualJoystick({
     );
 
     // If our touch isn't in the list anymore, ignore this event
-    if (!ourTouch) return;
+    if (!ourTouch) {
+      if (Platform.OS === 'android') {
+        console.log(
+          '⚠️ Android: Joystick touch lost! ID:',
+          activeTouchId.current,
+          'Available touches:',
+          event.nativeEvent.touches.length,
+        );
+      }
+      return;
+    }
 
     // Calculate movement from start position
     const dx = ourTouch.pageX - startPosition.current.x;
@@ -120,7 +122,19 @@ export default function VirtualJoystick({
 
   const handleTouchEnd = (event: GestureResponderEvent) => {
     // Check if OUR touch ended (not some other touch)
-    const ourTouchEnded = Array.from(event.nativeEvent.changedTouches).some(
+    const changedTouches = event.nativeEvent.changedTouches;
+    const allTouches = event.nativeEvent.touches;
+
+    console.log(
+      '🕹️ Touch end event - Changed touches:',
+      changedTouches.length,
+      'Remaining touches:',
+      allTouches.length,
+      'Our touch ID:',
+      activeTouchId.current,
+    );
+
+    const ourTouchEnded = Array.from(changedTouches).some(
       (t: any) => t.identifier === activeTouchId.current,
     );
 
@@ -130,6 +144,8 @@ export default function VirtualJoystick({
       setIsActive(false);
       setPosition({ x: 0, y: 0 });
       onRelease?.();
+    } else {
+      console.log('🕹️ Touch end was not ours, ignoring');
     }
   };
 

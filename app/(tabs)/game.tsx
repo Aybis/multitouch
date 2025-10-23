@@ -1,5 +1,7 @@
-import ActionButtons, { ActionType } from '@/components/game/action-buttons';
-import VirtualJoystick from '@/components/game/virtual-joystick';
+import { ActionType } from '@/components/game/action-buttons';
+// Old per-control components are no longer used here; unified overlay handles both
+// import VirtualJoystick from '@/components/game/virtual-joystick';
+import ControlsOverlay from '@/components/game/controls-overlay';
 
 import { useNavigation } from 'expo-router';
 import * as ScreenOrientation from 'expo-screen-orientation';
@@ -67,7 +69,12 @@ export default function GameScreen() {
   const gameUrl = '';
 
   return (
-    <View style={styles.container}>
+    <View
+      style={styles.container}
+      // CRITICAL for Android: Don't let this container intercept touches meant for children
+      onStartShouldSetResponder={() => false}
+      onMoveShouldSetResponder={() => false}
+    >
       {/* WebView Game */}
       <WebView
         source={{ uri: gameUrl }}
@@ -80,6 +87,38 @@ export default function GameScreen() {
         androidHardwareAccelerationDisabled={false}
         nestedScrollEnabled={false}
         scrollEnabled={false}
+        // Android-specific: Inject JS to disable touch events in control areas
+        injectedJavaScript={
+          Platform.OS === 'android'
+            ? `
+          (function() {
+            // Disable touch events in control areas for Android
+            const style = document.createElement('style');
+            style.textContent = '* { -webkit-touch-callout: none; -webkit-user-select: none; }';
+            document.head.appendChild(style);
+            
+            // Prevent default touch behavior in corners
+            document.addEventListener('touchstart', function(e) {
+              const x = e.touches[0].clientX;
+              const y = e.touches[0].clientY;
+              const width = window.innerWidth;
+              const height = window.innerHeight;
+              
+              // Block bottom-left (joystick area)
+              if (x < 250 && y > height - 250) {
+                e.stopPropagation();
+                return false;
+              }
+              // Block bottom-right (button area)
+              if (x > width - 300 && y > height - 300) {
+                e.stopPropagation();
+                return false;
+              }
+            }, { passive: false, capture: true });
+          })();
+        `
+            : undefined
+        }
         onMessage={(event) => {
           // Handle messages from WebView if needed
           console.log('Message from game:', event.nativeEvent.data);
@@ -105,28 +144,14 @@ export default function GameScreen() {
         </Text>
       </View>
 
-      {/* Virtual Controls Overlay */}
-      <View
-        style={styles.controlsOverlay}
-        pointerEvents="box-none"
-        collapsable={false}
-      >
-        {/* Left: Joystick */}
-        <View style={styles.joystickContainer} collapsable={false}>
-          <VirtualJoystick
-            onMove={handleJoystickMove}
-            onRelease={handleJoystickRelease}
-            size={140}
-            color="#4A90E2"
-          />
-        </View>
-
-        {/* Right: Action Buttons */}
-        <ActionButtons
-          onButtonPress={handleButtonPress}
-          onButtonRelease={handleButtonRelease}
-        />
-      </View>
+      {/* Unified Controls Overlay (Android-friendly multitouch routing) */}
+      <ControlsOverlay
+        joystickSize={140}
+        onJoystickMove={handleJoystickMove}
+        onJoystickRelease={handleJoystickRelease}
+        onButtonPress={handleButtonPress}
+        onButtonRelease={handleButtonRelease}
+      />
     </View>
   );
 }
@@ -149,8 +174,17 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 30,
     bottom: 40,
-    zIndex: 101,
-    elevation: 101,
+    zIndex: 9999,
+    elevation: 9999,
+  },
+  buttonsContainer: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    top: 0,
+    left: 0,
+    zIndex: 9998,
+    elevation: 9998,
   },
   debugInfo: {
     position: 'absolute',
@@ -166,6 +200,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
     marginBottom: 4,
+  },
+  joystickBlocker: {
+    position: 'absolute',
+    zIndex: 99,
+    elevation: 99,
+  },
+  buttonBlocker: {
+    position: 'absolute',
+    zIndex: 99,
+    elevation: 99,
   },
   menuButton: {
     position: 'absolute',

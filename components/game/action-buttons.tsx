@@ -84,6 +84,15 @@ export default function ActionButtons({
   ) => {
     // Check if any of the ended touches belong to this button
     const changedTouches = event.nativeEvent.changedTouches;
+    console.log(
+      '🎯 Button touch end event for:',
+      buttonType,
+      'Changed touches:',
+      changedTouches.length,
+      'Active touches map:',
+      Array.from(activeTouches.current.entries()),
+    );
+
     for (let i = 0; i < changedTouches.length; i++) {
       const touch = changedTouches[i];
       if (activeTouches.current.get(touch.identifier) === buttonType) {
@@ -106,7 +115,7 @@ export default function ActionButtons({
   };
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} pointerEvents="box-none">
       {buttons.map((button) => {
         const isPressed = pressedButtons.has(button.type);
         return (
