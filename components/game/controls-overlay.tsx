@@ -33,7 +33,12 @@ export default function ControlsOverlay({
   onButtonPress,
   onButtonRelease,
 }: ControlsOverlayProps) {
-  const windowSize = useMemo(() => Dimensions.get('window'), []);
+  // Track actual overlay size from layout (more reliable than Dimensions on iOS with safe areas)
+  const initialSize = useMemo(() => Dimensions.get('window'), []);
+  const [overlaySize, setOverlaySize] = useState({
+    width: initialSize.width,
+    height: initialSize.height,
+  });
   const maxDistance = joystickSize / 2 - 20;
 
   // Joystick state
@@ -52,7 +57,7 @@ export default function ControlsOverlay({
   const joystickBottom = 40;
   const joystickCenter = {
     x: joystickLeft + joystickSize / 2,
-    y: windowSize.height - (joystickBottom + joystickSize / 2),
+    y: overlaySize.height - (joystickBottom + joystickSize / 2),
   };
 
   // Buttons layout (match previous absolute positions)
@@ -89,8 +94,8 @@ export default function ControlsOverlay({
   ];
 
   const getButtonCenter = (b: { right: number; bottom: number }) => ({
-    x: windowSize.width - (b.right + buttonRadius),
-    y: windowSize.height - (b.bottom + buttonRadius),
+    x: overlaySize.width - (b.right + buttonRadius),
+    y: overlaySize.height - (b.bottom + buttonRadius),
   });
 
   const hitTestJoystick = (x: number, y: number) => {
@@ -231,11 +236,18 @@ export default function ControlsOverlay({
       // Single responder for all touches
       onStartShouldSetResponder={() => true}
       onMoveShouldSetResponder={() => true}
+      onLayout={(e) => {
+        const { width, height } = e.nativeEvent.layout;
+        if (width && height) {
+          setOverlaySize({ width, height });
+        }
+      }}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
       onTouchCancel={handleTouchEnd}
-      pointerEvents="box-none"
+      // Ensure this overlay itself receives touches on all platforms
+      pointerEvents="auto"
     >
       {/* Joystick visuals */}
       <View
