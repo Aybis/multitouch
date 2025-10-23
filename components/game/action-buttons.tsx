@@ -1,5 +1,11 @@
-import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import React, { useRef, useState } from 'react';
+import {
+  GestureResponderEvent,
+  StyleSheet,
+  Text,
+  View,
+  ViewStyle,
+} from 'react-native';
 
 export type ActionType = 'attack' | 'dodge' | 'jump' | 'run';
 
@@ -22,6 +28,9 @@ export default function ActionButtons({
   const [pressedButtons, setPressedButtons] = useState<Set<ActionType>>(
     new Set(),
   );
+
+  // Track active touches for each button
+  const activeTouches = useRef<Map<string, ActionType>>(new Map());
 
   const buttons: ButtonConfig[] = [
     {
@@ -50,18 +59,50 @@ export default function ActionButtons({
     },
   ];
 
-  const handlePressIn = (buttonType: ActionType) => {
-    setPressedButtons((prev) => new Set(prev).add(buttonType));
-    onButtonPress?.(buttonType);
+  const handleButtonTouchStart = (
+    buttonType: ActionType,
+    event: GestureResponderEvent,
+  ) => {
+    const touch =
+      event.nativeEvent.touches[event.nativeEvent.touches.length - 1];
+    if (touch) {
+      activeTouches.current.set(touch.identifier, buttonType);
+      setPressedButtons((prev) => new Set(prev).add(buttonType));
+      onButtonPress?.(buttonType);
+      console.log(
+        '🎯 Button pressed:',
+        buttonType,
+        'Touch ID:',
+        touch.identifier,
+      );
+    }
   };
 
-  const handlePressOut = (buttonType: ActionType) => {
-    setPressedButtons((prev) => {
-      const newSet = new Set(prev);
-      newSet.delete(buttonType);
-      return newSet;
-    });
-    onButtonRelease?.(buttonType);
+  const handleButtonTouchEnd = (
+    buttonType: ActionType,
+    event: GestureResponderEvent,
+  ) => {
+    // Check if any of the ended touches belong to this button
+    const changedTouches = event.nativeEvent.changedTouches;
+    for (let i = 0; i < changedTouches.length; i++) {
+      const touch = changedTouches[i];
+      if (activeTouches.current.get(touch.identifier) === buttonType) {
+        activeTouches.current.delete(touch.identifier);
+        setPressedButtons((prev) => {
+          const newSet = new Set(prev);
+          newSet.delete(buttonType);
+          return newSet;
+        });
+        onButtonRelease?.(buttonType);
+        console.log(
+          '🎯 Button released:',
+          buttonType,
+          'Touch ID:',
+          touch.identifier,
+        );
+        break;
+      }
+    }
   };
 
   return (
@@ -69,10 +110,11 @@ export default function ActionButtons({
       {buttons.map((button) => {
         const isPressed = pressedButtons.has(button.type);
         return (
-          <Pressable
+          <View
             key={button.type}
-            onPressIn={() => handlePressIn(button.type)}
-            onPressOut={() => handlePressOut(button.type)}
+            onTouchStart={(e) => handleButtonTouchStart(button.type, e)}
+            onTouchEnd={(e) => handleButtonTouchEnd(button.type, e)}
+            onTouchCancel={(e) => handleButtonTouchEnd(button.type, e)}
             style={[
               styles.button,
               button.position,
@@ -87,7 +129,7 @@ export default function ActionButtons({
             <Text style={styles.buttonText}>
               {button.type.charAt(0).toUpperCase() + button.type.slice(1)}
             </Text>
-          </Pressable>
+          </View>
         );
       })}
     </View>

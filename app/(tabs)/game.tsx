@@ -78,6 +78,8 @@ export default function GameScreen() {
         mediaPlaybackRequiresUserAction={false}
         androidLayerType="hardware"
         androidHardwareAccelerationDisabled={false}
+        nestedScrollEnabled={false}
+        scrollEnabled={false}
         onMessage={(event) => {
           // Handle messages from WebView if needed
           console.log('Message from game:', event.nativeEvent.data);
@@ -104,9 +106,13 @@ export default function GameScreen() {
       </View>
 
       {/* Virtual Controls Overlay */}
-      <View style={styles.controlsOverlay} pointerEvents="box-none">
+      <View
+        style={styles.controlsOverlay}
+        pointerEvents="box-none"
+        collapsable={false}
+      >
         {/* Left: Joystick */}
-        <View style={styles.joystickContainer}>
+        <View style={styles.joystickContainer} collapsable={false}>
           <VirtualJoystick
             onMove={handleJoystickMove}
             onRelease={handleJoystickRelease}

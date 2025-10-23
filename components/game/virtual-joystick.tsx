@@ -1,5 +1,11 @@
 import React, { useRef, useState } from 'react';
-import { GestureResponderEvent, StyleSheet, View } from 'react-native';
+import {
+  GestureResponderEvent,
+  Platform,
+  StyleSheet,
+  View,
+  findNodeHandle,
+} from 'react-native';
 
 interface JoystickData {
   x: number; // -1 to 1
@@ -28,10 +34,23 @@ export default function VirtualJoystick({
   // Track which touch is controlling this joystick
   const activeTouchId = useRef<string | null>(null);
   const startPosition = useRef({ x: 0, y: 0 });
+  const viewRef = useRef<View>(null);
 
   const handleTouchStart = (event: GestureResponderEvent) => {
     // Only respond if we don't already have an active touch
     if (activeTouchId.current !== null) return;
+
+    // CRITICAL FOR ANDROID: Tell parent views not to intercept our touches
+    // This prevents the WebView from stealing touch events
+    if (Platform.OS === 'android' && viewRef.current) {
+      const node = findNodeHandle(viewRef.current);
+      if (node) {
+        // @ts-ignore - requestDisallowInterceptTouchEvent exists but not in types
+        viewRef.current.setNativeProps?.({
+          onStartShouldSetResponderCapture: () => true,
+        });
+      }
+    }
 
     // Find the NEWEST touch (the one that just touched THIS component)
     // This might not be touches[0] if other areas are already touched
@@ -116,6 +135,7 @@ export default function VirtualJoystick({
 
   return (
     <View
+      ref={viewRef}
       style={[styles.container, { width: size, height: size }]}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
